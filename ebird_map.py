@@ -53,7 +53,8 @@ def parse_sightings(body):
         line = line.strip()
 
         # Species header: "Species Name (Scientific Name) (count) [CONFIRMED]"
-        m = re.match(r"^(.+?)\s+\(([A-Z][a-z].*?)\)\s*(?:\((\d+)\))?\s*(CONFIRMED)?$", line)
+        # Must not start with "- " (which indicates metadata lines like Reported, Map, etc.)
+        m = re.match(r"^(?!- )(.+?)\s+\(([A-Z][a-z].*?)\)\s*(?:\((\d+)\))?\s*(CONFIRMED)?$", line)
         if m:
             if current.get("lat"):
                 sightings.append(current)
@@ -310,15 +311,22 @@ def main():
     if not parsed_emls:
         sys.exit("No sightings with coordinates found in any .eml file.")
 
-    # Filter by date: default to latest email only, or latest N days
+    # Filter by date: default depends on whether input is a single file or directory
     newest_date = max(e[3] for e in parsed_emls if e[3])
     if args.days is not None:
         cutoff = newest_date - timedelta(days=args.days - 1)
         parsed_emls = [e for e in parsed_emls if e[3] and e[3] >= cutoff]
         print(f"Showing {args.days} day(s) up to {newest_date} ({len(parsed_emls)} emails)")
+    elif len(eml_paths) == 1:
+        # Single file: just use it as-is
+        print(f"Showing {parsed_emls[0][0]} ({newest_date})")
     else:
-        parsed_emls = [e for e in parsed_emls if e[3] == newest_date]
-        print(f"Showing latest ({newest_date}, {len(parsed_emls)} email(s))")
+        # Multiple files (directory): include all by default
+        oldest_date = min(e[3] for e in parsed_emls if e[3])
+        if oldest_date == newest_date:
+            print(f"Showing all {len(parsed_emls)} emails ({newest_date})")
+        else:
+            print(f"Showing all {len(parsed_emls)} emails ({oldest_date} to {newest_date})")
 
     all_sightings = []
     title = None
