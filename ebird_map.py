@@ -8,9 +8,11 @@ import argparse
 import email
 import email.policy
 import glob
+import json
 import os
 import re
 import sys
+import urllib.request
 import webbrowser
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -100,6 +102,77 @@ def parse_sightings(body):
 
     if current.get("lat"):
         sightings.append(current)
+
+    return sightings
+
+
+# ── Fetch from eBird API ──────────────────────────────────────────────────────
+
+def fetch_sightings(region, api_key, back=7):
+    """Fetch recent notable observations from the eBird API v2.
+
+    Returns a list of sighting dicts in the same format as parse_sightings().
+    """
+    url = (
+        f"https://api.ebird.org/v2/data/obs/{region}/recent/notable"
+        f"?detail=full&back={back}"
+    )
+    req = urllib.request.Request(url, headers={"X-eBirdApiToken": api_key})
+    try:
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        if e.code == 403:
+            sys.exit("Error: Invalid eBird API key.")
+        elif e.code == 400:
+            sys.exit(f"Error: Invalid region code '{region}'.")
+        else:
+            sys.exit(f"eBird API error: {e.code} {e.reason}")
+    except urllib.error.URLError as e:
+        sys.exit(f"Network error: {e.reason}")
+
+    if not data:
+        sys.exit(f"No notable observations found for region '{region}' in the last {back} day(s).")
+
+    sightings = []
+    for obs in data:
+        lat = obs.get("lat")
+        lng = obs.get("lng")
+        if lat is None or lng is None:
+            continue
+
+        reviewed = obs.get("obsReviewed", False)
+        valid = obs.get("obsValid", False)
+        confirmed = reviewed and valid
+
+        # Format date to match .eml style: "Feb 05, 2026 15:08"
+        obs_dt = obs.get("obsDt", "")
+        date_str = ""
+        if obs_dt:
+            for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    dt = datetime.strptime(obs_dt, fmt)
+                    date_str = dt.strftime("%b %d, %Y %H:%M")
+                    break
+                except ValueError:
+                    continue
+
+        sub_id = obs.get("subId", "")
+        checklist_url = f"https://ebird.org/checklist/{sub_id}" if sub_id else ""
+
+        sightings.append({
+            "species": obs.get("comName", "Unknown"),
+            "scientific": obs.get("sciName", ""),
+            "count": str(obs.get("howMany", "?")) if obs.get("howMany") else "?",
+            "confirmed": confirmed,
+            "location": obs.get("locName", ""),
+            "lat": float(lat),
+            "lon": float(lng),
+            "date": date_str,
+            "observer": obs.get("userDisplayName", ""),
+            "comments": "",
+            "checklist": checklist_url,
+        })
 
     return sightings
 
@@ -274,7 +347,8 @@ L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Parse an eBird Rare Bird Alert .eml and generate an interactive map."
+        description="Generate an interactive map from eBird rare bird alerts "
+                    "(.eml files or the eBird API)."
     )
     parser.add_argument(
         "eml", nargs="?", default=None,
@@ -282,7 +356,7 @@ def main():
     )
     parser.add_argument(
         "-o", "--output", default=None,
-        help="Output HTML file path (defaults to ebird_map.html next to the .eml)",
+        help="Output HTML file path (defaults to ebird_map.html)",
     )
     parser.add_argument(
         "-s", "--state", default=None,
@@ -290,14 +364,59 @@ def main():
     )
     parser.add_argument(
         "-d", "--days", type=int, default=None,
-        help="Include emails from the latest N days (default: latest email only)",
+        help="Include emails from the latest N days (default: all emails in directory)",
     )
     parser.add_argument(
         "--no-open", action="store_true",
         help="Don't open the map in the browser",
     )
+    # eBird API arguments
+    parser.add_argument(
+        "--region", default=None,
+        help="eBird region code (e.g. US-MA-001) — fetch notable sightings from API",
+    )
+    parser.add_argument(
+        "--api-key", default=None,
+        help="eBird API key (or set EBIRD_API_KEY env var)",
+    )
+    parser.add_argument(
+        "--back", type=int, default=7,
+        help="Days to look back when using --region (1-30, default: 7)",
+    )
     args = parser.parse_args()
 
+    # ── API mode ──────────────────────────────────────────────────────────
+    if args.region:
+        api_key = args.api_key or os.environ.get("EBIRD_API_KEY")
+        if not api_key:
+            sys.exit("Error: --api-key or EBIRD_API_KEY env var required with --region.")
+
+        back = max(1, min(30, args.back))
+        print(f"Fetching notable observations for {args.region} (last {back} days)...")
+        all_sightings = fetch_sightings(args.region, api_key, back)
+
+        if args.state:
+            filtered = [s for s in all_sightings if args.state.lower() in s["location"].lower()]
+            print(f"Filtered to '{args.state}': {len(filtered)} of {len(all_sightings)} sightings")
+            all_sightings = filtered
+
+        if not all_sightings:
+            sys.exit("No sightings with coordinates found.")
+
+        species = sorted({s["species"] for s in all_sightings})
+        print(f"Total: {len(all_sightings)} sightings — {len(species)} unique species:")
+        for name in species:
+            print(f"  • {name}")
+
+        title = f"eBird Notable: {args.region}"
+        out = args.output or os.path.join(os.getcwd(), "ebird_map.html")
+        generate_map(all_sightings, title, out, days=back)
+        print(f"Map written to: {out}")
+        if not args.no_open:
+            webbrowser.open(f"file:///{os.path.abspath(out).replace(os.sep, '/')}")
+        return
+
+    # ── .eml mode ─────────────────────────────────────────────────────────
     eml_paths = find_emls(args.eml)
 
     # Parse all emails and collect their dates
