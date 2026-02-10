@@ -364,7 +364,8 @@ def main():
     )
     parser.add_argument(
         "-d", "--days", type=int, default=None,
-        help="Include emails from the latest N days (default: all emails in directory)",
+        help="Lookback window in days. For .eml mode: include emails from the latest N days. "
+             "For --region mode: API lookback, 1-30 (default: 7).",
     )
     parser.add_argument(
         "--no-open", action="store_true",
@@ -379,10 +380,6 @@ def main():
         "--api-key", default=None,
         help="eBird API key (or set EBIRD_API_KEY env var)",
     )
-    parser.add_argument(
-        "--back", type=int, default=7,
-        help="Days to look back when using --region (1-30, default: 7)",
-    )
     args = parser.parse_args()
 
     # ── API mode ──────────────────────────────────────────────────────────
@@ -391,7 +388,7 @@ def main():
         if not api_key:
             sys.exit("Error: --api-key or EBIRD_API_KEY env var required with --region.")
 
-        back = max(1, min(30, args.back))
+        back = max(1, min(30, args.days)) if args.days else 7
         print(f"Fetching notable observations for {args.region} (last {back} days)...")
         all_sightings = fetch_sightings(args.region, api_key, back)
 
