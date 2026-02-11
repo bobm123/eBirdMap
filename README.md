@@ -33,7 +33,7 @@ python ebird_map.py [path] [options]
 
 ```bash
 # Map from a single email
-python ebird_map.py alerts/alert.eml
+python ebird_map.py eBirdAlert-Mass-20260208.eml
 
 # All emails in a directory, last 7 days, Maryland only
 python ebird_map.py alerts/ --days 7 --state Maryland
@@ -41,6 +41,9 @@ python ebird_map.py alerts/ --days 7 --state Maryland
 # 30-day view with custom output path
 python ebird_map.py alerts/ --days 30 -o my_map.html
 ```
+
+![Rare Bird Alert Map for Massachusetts](Massachusetts.png)
+*Figure 1: Rare Bird Alert Map for Massachusetts*
 
 ## Signing Up for eBird Alerts
 
@@ -100,7 +103,13 @@ python ebird_map.py --region US-MA --days 14
 
 # Maryland, filtered to a specific area, custom output
 python ebird_map.py --region US-MD --days 30 --state "Baltimore" -o baltimore.html
+
+# All of Texas
+python ebird_map.py --region US-TX
 ```
+
+![Texas Map shown zoomed in on Austin](AustinTX.png)
+*Figure 2: Texas Map shown zoomed in on Austin*
 
 ### Region Codes
 
