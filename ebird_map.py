@@ -374,7 +374,7 @@ def main():
     # eBird API arguments
     parser.add_argument(
         "--region", default=None,
-        help="eBird region code (e.g. US-MA-001) — fetch notable sightings from API",
+        help="eBird region code(s), comma-separated (e.g. US-MA-001 or US-MD,US-MD-031) — fetch notable sightings from API",
     )
     parser.add_argument(
         "--api-key", default=None,
@@ -389,8 +389,14 @@ def main():
             sys.exit("Error: --api-key or EBIRD_API_KEY env var required with --region.")
 
         back = max(1, min(30, args.days)) if args.days else 7
-        print(f"Fetching notable observations for {args.region} (last {back} days)...")
-        all_sightings = fetch_sightings(args.region, api_key, back)
+        regions = [r.strip() for r in args.region.split(",") if r.strip()]
+
+        all_sightings = []
+        for region in regions:
+            print(f"Fetching notable observations for {region} (last {back} days)...")
+            sightings = fetch_sightings(region, api_key, back)
+            print(f"  {len(sightings)} sightings from {region}")
+            all_sightings.extend(sightings)
 
         if args.state:
             filtered = [s for s in all_sightings if args.state.lower() in s["location"].lower()]
@@ -405,7 +411,7 @@ def main():
         for name in species:
             print(f"  • {name}")
 
-        title = f"eBird Notable: {args.region}"
+        title = "eBird Notable: " + ", ".join(regions)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         out = args.output or os.path.join(os.getcwd(), f"ebird_map_{timestamp}.html")
         generate_map(all_sightings, title, out, days=back)
