@@ -27,6 +27,7 @@ python ebird_map.py [path] [options]
 | `-o`, `--output` | Output HTML file path (default: `ebird_map.html` in the input directory) |
 | `-s`, `--state` | Filter sightings to a state (e.g. `Maryland`, `Massachusetts`) |
 | `-d`, `--days` | Include the latest N days of emails (default: latest day only) |
+| `--format` | Output format: `html` (interactive map) or `kml` (Google Earth/Maps). Default: `html` |
 | `--no-open` | Don't open the map in the browser automatically |
 
 **Examples:**
@@ -109,6 +110,12 @@ python ebird_map.py --region US-MD --days 30 --state "Baltimore" -o baltimore.ht
 
 # All of Texas
 python ebird_map.py --region US-TX
+
+# KML output for Google Earth / Google Maps on mobile
+python ebird_map.py --region US-MD --format kml
+
+# KML from .eml files
+python ebird_map.py alerts/ --format kml
 ```
 
 ![Texas Map shown zoomed in on Austin](AustinTX.png)

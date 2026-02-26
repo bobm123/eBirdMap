@@ -2,4 +2,5 @@ alerts/
 __pycache__/
 *.pyc
 *.html
+*.kml
 .claude/settings.local.json

@@ -16,6 +16,7 @@ import urllib.request
 import webbrowser
 from collections import defaultdict
 from datetime import datetime, timedelta
+from xml.sax.saxutils import escape as xml_escape
 
 # ── Parse .eml ──────────────────────────────────────────────────────────────
 
@@ -213,6 +214,29 @@ def popup_html(group):
     return "".join(lines)
 
 
+def kml_description(group):
+    """Build HTML description for a KML placemark from a group of sightings."""
+    loc = group[0]["location"]
+    lines = [f"<b>{loc}</b><br>"]
+    seen_species = set()
+    for s in group:
+        tag = f"{s['species']} ({s['count']})"
+        if tag in seen_species:
+            continue
+        seen_species.add(tag)
+        conf = " ✓" if s["confirmed"] else ""
+        lines.append(
+            f"<b>{s['species']}</b> ×{s['count']}{conf}<br>"
+            f"<i>{s['date']}</i> — {s['observer']}<br>"
+        )
+        if s["comments"]:
+            lines.append(f"{s['comments']}<br>")
+        if s["checklist"]:
+            lines.append(f"<a href='{s['checklist']}'>Checklist</a><br>")
+        lines.append("<br>")
+    return "".join(lines)
+
+
 def escape_js(s):
     return s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
 
@@ -224,6 +248,12 @@ def age_color(age_fraction):
     g = int(76 + (62 - 76) * age_fraction)
     b = int(60 + (80 - 60) * age_fraction)
     return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def rgb_to_kml_color(hex_color):
+    """Convert '#rrggbb' to KML's 'aaBBGGRR' format (fully opaque)."""
+    r, g, b = hex_color[1:3], hex_color[3:5], hex_color[5:7]
+    return f"ff{b}{g}{r}"
 
 
 def parse_reported_date(date_str):
@@ -343,6 +373,71 @@ L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
     return out_path
 
 
+def generate_kml(sightings, title, out_path, days=None):
+    """Generate a KML file with placemarks for each sighting location."""
+    groups = group_sightings(sightings)
+
+    # Compute date range for color scaling
+    reported_dates = [parse_reported_date(s["date"]) for s in sightings]
+    reported_dates = [d for d in reported_dates if d]
+    newest = max(reported_dates) if reported_dates else None
+    oldest = min(reported_dates) if reported_dates else None
+    if days and days > 1:
+        date_span = days
+    else:
+        date_span = (newest - oldest).days if newest and oldest and newest != oldest else 1
+
+    styles = []
+    placemarks = []
+
+    for i, ((lat, lon), group) in enumerate(groups.items()):
+        # Compute age-based color
+        group_dates = [parse_reported_date(s["date"]) for s in group]
+        group_dates = [d for d in group_dates if d]
+        group_newest = max(group_dates) if group_dates else newest
+        age_frac = (newest - group_newest).days / date_span if newest else 0
+        color = age_color(age_frac)
+        kml_color = rgb_to_kml_color(color)
+
+        style_id = f"pin{i}"
+        styles.append(
+            f"  <Style id=\"{style_id}\">\n"
+            f"    <IconStyle>\n"
+            f"      <color>{kml_color}</color>\n"
+            f"      <Icon><href>https://maps.google.com/mapfiles/kml/paddle/wht-blank.png</href></Icon>\n"
+            f"    </IconStyle>\n"
+            f"  </Style>"
+        )
+
+        species_list = sorted({s["species"] for s in group})
+        name = xml_escape(", ".join(species_list))
+        desc = kml_description(group)
+
+        placemarks.append(
+            f"  <Placemark>\n"
+            f"    <name>{name}</name>\n"
+            f"    <description><![CDATA[{desc}]]></description>\n"
+            f"    <styleUrl>#{style_id}</styleUrl>\n"
+            f"    <Point><coordinates>{lon},{lat},0</coordinates></Point>\n"
+            f"  </Placemark>"
+        )
+
+    kml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<kml xmlns="http://www.opengis.net/kml/2.2">\n'
+        '<Document>\n'
+        f'  <name>{xml_escape(title)}</name>\n'
+        + "\n".join(styles) + "\n"
+        + "\n".join(placemarks) + "\n"
+        '</Document>\n'
+        '</kml>\n'
+    )
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(kml)
+    return out_path
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -380,6 +475,10 @@ def main():
         "--api-key", default=None,
         help="eBird API key (or set EBIRD_API_KEY env var)",
     )
+    parser.add_argument(
+        "--format", choices=["html", "kml"], default="html",
+        help="Output format: html (interactive map) or kml (Google Earth/Maps) (default: html)",
+    )
     args = parser.parse_args()
 
     # ── API mode ──────────────────────────────────────────────────────────
@@ -412,11 +511,15 @@ def main():
             print(f"  • {name}")
 
         title = "eBird Notable: " + ", ".join(regions)
+        ext = ".kml" if args.format == "kml" else ".html"
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out = args.output or os.path.join(os.getcwd(), f"ebird_map_{timestamp}.html")
-        generate_map(all_sightings, title, out, days=back)
-        print(f"Map written to: {out}")
-        if not args.no_open:
+        out = args.output or os.path.join(os.getcwd(), f"ebird_map_{timestamp}{ext}")
+        if args.format == "kml":
+            generate_kml(all_sightings, title, out, days=back)
+        else:
+            generate_map(all_sightings, title, out, days=back)
+        print(f"{'KML' if args.format == 'kml' else 'Map'} written to: {out}")
+        if not args.no_open and args.format == "html":
             webbrowser.open(f"file:///{os.path.abspath(out).replace(os.sep, '/')}")
         return
 
@@ -476,11 +579,16 @@ def main():
 
     input_path = args.eml or os.path.dirname(os.path.abspath(__file__))
     default_dir = input_path if os.path.isdir(input_path) else os.path.dirname(os.path.abspath(input_path))
+    ext = ".kml" if args.format == "kml" else ".html"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out = args.output or os.path.join(default_dir, f"ebird_map_{timestamp}.html")
-    generate_map(all_sightings, title or "eBird Rare Bird Alert", out, days=args.days)
-    print(f"Map written to: {out}")
-    if not args.no_open:
+    out = args.output or os.path.join(default_dir, f"ebird_map_{timestamp}{ext}")
+    map_title = title or "eBird Rare Bird Alert"
+    if args.format == "kml":
+        generate_kml(all_sightings, map_title, out, days=args.days)
+    else:
+        generate_map(all_sightings, map_title, out, days=args.days)
+    print(f"{'KML' if args.format == 'kml' else 'Map'} written to: {out}")
+    if not args.no_open and args.format == "html":
         webbrowser.open(f"file:///{os.path.abspath(out).replace(os.sep, '/')}")
 
 
