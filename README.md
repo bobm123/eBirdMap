@@ -42,8 +42,8 @@ python ebird_map.py alerts/ --days 7 --state Maryland
 python ebird_map.py alerts/ --days 30 -o my_map.html
 ```
 
-![Rare Bird Alert Map for Massachusetts](Massachusetts.png)
-*Figure 1: Rare Bird Alert Map for Massachusetts*
+![Rare Bird Alert Map for Maryland and Montgomery County](MD+Montgomery.png)
+*Figure 1: Rare Bird Alert Map for Maryland and Montgomery County*
 
 ## Signing Up for eBird Alerts
 
