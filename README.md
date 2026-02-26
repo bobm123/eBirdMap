@@ -101,6 +101,9 @@ python ebird_map.py --region US-MA-001
 # All of Massachusetts — last 14 days
 python ebird_map.py --region US-MA --days 14
 
+# Multiple regions at once
+python ebird_map.py --region US-MD,US-MD-031
+
 # Maryland, filtered to a specific area, custom output
 python ebird_map.py --region US-MD --days 30 --state "Baltimore" -o baltimore.html
 
@@ -121,25 +124,31 @@ eBird region codes follow a hierarchy: **country** → **state/province** → **
 | State/Province | `XX-YY` | `US-MA`, `US-CA`, `CA-ON` |
 | County | `XX-YY-ZZZ` | `US-MA-001`, `US-MD-003` |
 
-**Massachusetts counties:**
+**Maryland counties:**
 
 | Code | County | Code | County |
 |---|---|---|---|
-| `US-MA-001` | Barnstable | `US-MA-015` | Hampshire |
-| `US-MA-003` | Berkshire | `US-MA-017` | Middlesex |
-| `US-MA-005` | Bristol | `US-MA-019` | Nantucket |
-| `US-MA-007` | Dukes | `US-MA-021` | Norfolk |
-| `US-MA-009` | Essex | `US-MA-023` | Plymouth |
-| `US-MA-011` | Franklin | `US-MA-025` | Suffolk |
-| `US-MA-013` | Hampden | `US-MA-027` | Worcester |
+| `US-MD-001` | Allegany | `US-MD-029` | Kent |
+| `US-MD-003` | Anne Arundel | `US-MD-031` | Montgomery |
+| `US-MD-005` | Baltimore | `US-MD-033` | Prince George's |
+| `US-MD-009` | Calvert | `US-MD-035` | Queen Anne's |
+| `US-MD-011` | Caroline | `US-MD-037` | St. Mary's |
+| `US-MD-013` | Carroll | `US-MD-039` | Somerset |
+| `US-MD-015` | Cecil | `US-MD-041` | Talbot |
+| `US-MD-017` | Charles | `US-MD-043` | Washington |
+| `US-MD-019` | Dorchester | `US-MD-045` | Wicomico |
+| `US-MD-021` | Frederick | `US-MD-047` | Worcester |
+| `US-MD-023` | Garrett | `US-MD-510` | Baltimore City |
+| `US-MD-025` | Harford | | |
+| `US-MD-027` | Howard | | |
 
 County codes use FIPS numbers. To find codes for any region, browse [ebird.org/alerts](https://ebird.org/alerts) or query the API:
 
 ```
-https://api.ebird.org/v2/ref/region/list/subnational2/US-MA
+https://api.ebird.org/v2/ref/region/list/subnational2/US-MD
 ```
 
-Replace `subnational2` with `subnational1` for states, or `country` for countries. Replace `US-MA` with the parent region.
+Replace `subnational2` with `subnational1` for states, or `country` for countries. Replace `US-MD` with the parent region.
 
 ## Setup
 
