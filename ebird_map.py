@@ -406,7 +406,8 @@ def main():
             print(f"  • {name}")
 
         title = f"eBird Notable: {args.region}"
-        out = args.output or os.path.join(os.getcwd(), "ebird_map.html")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out = args.output or os.path.join(os.getcwd(), f"ebird_map_{timestamp}.html")
         generate_map(all_sightings, title, out, days=back)
         print(f"Map written to: {out}")
         if not args.no_open:
@@ -469,7 +470,8 @@ def main():
 
     input_path = args.eml or os.path.dirname(os.path.abspath(__file__))
     default_dir = input_path if os.path.isdir(input_path) else os.path.dirname(os.path.abspath(input_path))
-    out = args.output or os.path.join(default_dir, "ebird_map.html")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out = args.output or os.path.join(default_dir, f"ebird_map_{timestamp}.html")
     generate_map(all_sightings, title or "eBird Rare Bird Alert", out, days=args.days)
     print(f"Map written to: {out}")
     if not args.no_open:
